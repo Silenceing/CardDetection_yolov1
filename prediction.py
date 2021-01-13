@@ -1,49 +1,6 @@
 # -*- coding: utf-8 -*
-from flyai.framework import FlyAI
-import os
-from path import MODEL_PATH
-import torch.nn as nn
-import main
-import cv2
-import numpy as np
-from torch.utils.data import DataLoader
-import torchvision.models as tvmodel
-import torch
+from main import *
 
-class Net(nn.Module):
-    def __init__(self):
-        super().__init__()
-        resnet=tvmodel.resnet34(pretrained=True)
-        resnet_out_channel=resnet.fc.in_features
-        self.resnet=nn.Sequential(*list(resnet.children()))[:-2]
-
-        self.convlayer=nn.Sequential(
-            nn.Conv2d(resnet_out_channel,1024,3,padding=1),
-            nn.BatchNorm2d(1024),
-            nn.LeakyReLU(),
-            nn.Conv2d(1024,1024,3,stride=2,padding=1),
-            nn.BatchNorm2d(1024),
-            nn.LeakyReLU(),
-            nn.Conv2d(1024,1024,3,padding=1),
-            nn.BatchNorm2d(1024),
-            nn.LeakyReLU(),
-            nn.Conv2d(1024,1024,3,padding=1),
-            nn.BatchNorm2d(1024),
-            nn.LeakyReLU()
-        )
-        self.fclayer=nn.Sequential(
-            nn.Linear(7*7*1024,4096),
-            nn.LeakyReLU(),
-            nn.Linear(4096,7*7*34),
-            nn.Sigmoid()
-        )
-    def forward(self,out):
-        out=self.resnet(out)
-        out=self.convlayer(out)
-        out=out.view(out.size()[0],-1)
-        out=self.fclayer(out)
-
-        return out.reshape(-1,(5*main.box_NUM+main.classNum),7,7)
 
 COLOR = [(255,0,0),(255,125,0),(255,255,0),(255,0,125),(255,0,250),
          (255,125,125),(255,125,250),(125,125,0),(0,255,125),(255,0,0),
@@ -72,12 +29,12 @@ def draw_bbox(img,bbox,img0):
         p1=(int(w*bbox[i,1]*gw),int(h*bbox[i,2]*gh))
         p2 = (int(w * bbox[i, 3]*gw), int(h * bbox[i, 4]*gh))
 
-        cls_name=main.classes[int(bbox[i,0])]
+        cls_name=classes[int(bbox[i,0])]
         confidence=bbox[i,5]
 
 
         print("bbox:",bbox)
-        print(p1,p2,main.classes[int(bbox[i,0])],confidence.data.item())
+        print(p1,p2,classes[int(bbox[i,0])],confidence.data.item())
         # img = img[:, :, ::-1].transpose(2, 0, 1)
         img = np.ascontiguousarray(img0)
         cv2.rectangle(img,p1,p2,color=COLOR[int(bbox[i,0])],thickness=2)
@@ -174,7 +131,7 @@ def NMS(bbox,conf_thresh=0.1,iou_thresh=0.3):
             if bbox_cls_spec_conf[rank[i],c]!=0:
                 for j in range(i+1,98):
                     if bbox_cls_spec_conf[rank[j],c]!=0:
-                        iou=main.calculate_iou(bbox[rank[i],0:4],bbox[rank[j],0:4])
+                        iou=calculate_iou(bbox[rank[i],0:4],bbox[rank[j],0:4])
                         if iou>iou_thresh:# 根据iou进行非极大值抑制抑制
                             bbox_cls_spec_conf[rank[j],c]=0
 
@@ -188,22 +145,13 @@ def NMS(bbox,conf_thresh=0.1,iou_thresh=0.3):
 
 
 
-
-
-
-
-
-
-
-
-
 class Prediction(FlyAI):
     def load_model(self):
         '''
         模型初始化，必须在此方法中加载模型
         '''
         # model=main.Net()
-        model=torch.load("./data/output/model/epoch100.pkl")
+        model=torch.load("./data/output/model/epoch10.pkl")
         return model
 
 
@@ -215,7 +163,7 @@ class Prediction(FlyAI):
         '''
         # val_data = DataLoader(main.LoadDataset(), batch_size=main.BatchSize, shuffle=True)
         image_path='./data/input/CardDetection/images/0.jpg'
-        val_data = DataLoader(main.LoadDataset('./data/input/CardDetection/images/0.jpg'), batch_size=main.BatchSize, shuffle=True)
+        val_data = DataLoader(LoadDataset('./data/input/CardDetection/images/0.jpg'), batch_size=BatchSize, shuffle=True)
         image_name = os.path.basename(image_path) # 0.jpg
         #
         # # ... 模型预测

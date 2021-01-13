@@ -382,7 +382,7 @@ class Main(FlyAI):
                 loss_.backward()
                 optim.step()
                 print('Epoch:[%d/%d]  step: [%d/%d]  loss:%.2f'%(e+1,Epoch,i,len(data)//BatchSize,loss_))
-            if (e+1)%20==0:
+            if (e+1)%10==0:
                 torch.save(model,modelpath+'epoch'+str(e+1)+'.pkl')
 
 
