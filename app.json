@@ -1,0 +1,47 @@
+{
+  "name":"卡牌目标检测", 
+  "author":"样例基线", 
+  "description":"卡牌目标检测", 
+  "topic":"计算机视觉", 
+  "model":{
+    "input":{
+      "columns":[
+        {
+          "name":"image_path", 
+          "type":"string", 
+          "sample":"images/0.jpg"
+        }
+      ]
+    }, 
+    "output":{
+      "columns":[
+        {
+          "name":"label", 
+          "type":"string", 
+          "sample":"[{\"image_name\": image_name, \"label_name\": \"I\", \"bbox\": [735, 923, 35, 75], \"confidence\": 0.2}]"
+        }
+      ]
+    }
+  }, 
+  "data":{
+    "source":[
+      {
+        "id":"CardDetection", 
+        "name":"CardDetection", 
+        "source":"CardDetection"
+      }
+    ]
+  }, 
+  "project":{
+    "id":"CardDetection", 
+    "language":"Python3", 
+    "algorithm":"CNN", 
+    "framework":"PyTorch", 
+    "train":{
+      "file":"main.py"
+    }, 
+    "prediction":{
+      "file":"prediction.py"
+    }
+  }
+}
