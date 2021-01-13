@@ -189,10 +189,10 @@ class Net(nn.Module):
         self.fclayer=nn.Sequential(
             nn.Linear(7*7*1024,4096),
             nn.LeakyReLU(),
-            nn.Dropout(p=0.2),
+            nn.Dropout(p=0.5),
             nn.Linear(4096,4096),
             nn.LeakyReLU(),
-            nn.Dropout(p=0.2),
+            nn.Dropout(p=0.5),
             nn.Linear(4096, 7 * 7 * 34),
             nn.Sigmoid()
         )
