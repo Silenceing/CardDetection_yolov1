@@ -54,32 +54,6 @@ def draw_bbox(img,bbox,img0):
     cv2.waitKey(0)
     return box
 
-def xywh2xxyy(matrix):
-    if matrix.size()[0:2] != (7, 7):
-        raise ValueError("Error: Wrong labels size:", matrix.size())
-    bbox = torch.zeros((98, 29))
-    # 先把7*7*30的数据转变为bbox的(98,25)的格式，其中，bbox信息格式从(px,py,w,h)转换为(x1,y1,x2,y2),方便计算iou
-    for i in range(7):
-        for j in range(7):
-            #box1的中心坐标
-            bbox[2 * (i * 7 + j), 0:4] = torch.Tensor([(matrix[i, j, 0] + j) / 7 - matrix[i, j, 2] / 2,
-                                                       (matrix[i, j, 1] + i) / 7 - matrix[i, j, 3] / 2,
-                                                       (matrix[i, j, 0] + j) / 7 + matrix[i, j, 2] / 2,
-                                                       (matrix[i, j, 1] + i) / 7 + matrix[i, j, 3] / 2])
-            bbox[2 * (i * 7 + j), 4] = matrix[i, j, 4]
-            bbox[2 * (i * 7 + j), 5:] = matrix[i, j, 10:]
-            bbox[2 * (i * 7 + j) + 1, 0:4] = torch.Tensor([(matrix[i, j, 5] + j) / 7 - matrix[i, j, 7] / 2,
-                                                           (matrix[i, j, 6] + i) / 7 - matrix[i, j, 8] / 2,
-                                                           (matrix[i, j, 5] + j) / 7 + matrix[i, j, 7] / 2,
-                                                           (matrix[i, j, 6] + i) / 7 + matrix[i, j, 8] / 2])
-            bbox[2 * (i * 7 + j) + 1, 4] = matrix[i, j, 9]
-            bbox[2 * (i * 7 + j) + 1, 5:] = matrix[i, j, 10:]
-
-    return NMS(bbox)
-
-
-
-
 
 def labels2bbox(matrix):
     """
@@ -182,8 +156,8 @@ class Prediction(FlyAI):
         for i, (x, lb) in enumerate(val_data):
             print("x.shape",x.shape)
             pred = model(x)
-            pred = pred.squeeze(dim=0)
-            pred = pred.permute((1, 2, 0))
+            pred = pred.squeeze(dim=0)#34*7*7
+            pred = pred.permute((1, 2, 0))#7*7*34
             # 此处可以用labels代替pred，测试一下输出的bbox是否和标签一样，从而检查labels2bbox函数是否正确。
             # 当然，还要注意将数据集改成训练集而不是测试集，因为测试集没有labels。
             bbox = labels2bbox(pred)#7*7*34

@@ -46,11 +46,14 @@ box_NUM=2
 BatchSize=1
 Epoch=100
 Lr=0.0001
+
+#将box信息存入多维数组中作为labels矩阵
 def bbox2labels(bbox):
     grid_size=1.0/7
     labels=np.zeros((7,7,5*box_NUM+classNum))
 
     for i in range(len(bbox)//5):
+        # 表示中心点分落在cell中的位置（行列）
         gridx=int(bbox[i*5+1]//grid_size)
         gridy=int(bbox[i*5+2]//grid_size)
 
@@ -58,11 +61,13 @@ def bbox2labels(bbox):
         gridpy=bbox[i*5+2]//grid_size-gridy
 
         #box+con设置
+        #在对应的位置处，将中心点（gridpx,gridpy）及宽高（bbox[i*5+3],bbox[i*5+4]）置信度为1信息存入
         labels[gridx,gridy,0:5]=np.array([gridpx,gridpy,bbox[i*5+3],bbox[i*5+4],1])
         labels[gridx,gridy,5:10]=np.array([gridpx,gridpy,bbox[i*5+3],bbox[i*5+4],1])
-        #cls设置
+        #cls设置该box所属类别为1，其他类别为0
         labels[gridx,gridy,10+int(bbox[i*5])]=1
     # print(labels.shape)
+    #label形式：（7,7,34）
     return labels
 
 class LoadDataset(Dataset):
@@ -158,10 +163,13 @@ class LoadDataset(Dataset):
         # cv2.imshow('pic', img)
         # cv2.waitKey()
         #
+        # [ 7, 7,34]
         labels=bbox2labels(bbox)
+
+        #torch.Size([34, 7, 7])
         labels=transform.ToTensor()(labels)
 
-        # print("labels.shape:", labels.shape)
+        print("labels.shape:", labels.shape)
         # print("img.shape:", img.shape)
 
         return img,labels
@@ -206,7 +214,7 @@ class Net(nn.Module):
 
 def calculate_iou(bbox1,bbox2):
     intersect_bbox=[0.,0.,0.,0.]
-    #真实框与预测框不重叠的4种情况
+    #真实框与预测框不重叠的4种情况：
     if bbox1[2]<bbox2[0] or bbox1[0]>bbox2[2]or bbox1[3]<bbox2[1]or bbox1[1]>bbox2[3]:
         pass
     else:
@@ -215,13 +223,14 @@ def calculate_iou(bbox1,bbox2):
         intersect_bbox[1] = max(bbox1[1], bbox2[1])
         intersect_bbox[2] = min(bbox1[2], bbox2[2])
         intersect_bbox[3] = min(bbox1[3], bbox2[3])
-
+    #box1
     area1=(bbox1[2]-bbox1[0])*(bbox1[3]-bbox1[1])
+    #box2
     area2 = (bbox2[2] - bbox2[0]) * (bbox2[3] - bbox2[1])
 
     #重叠区域面积
     area_intersect=(intersect_bbox[2]-intersect_bbox[0])*(intersect_bbox[3]-intersect_bbox[1])
-
+    #iou
     if area_intersect>0:
         return area_intersect/(area1+area2-area_intersect)
     else:
@@ -232,10 +241,10 @@ class objloss(nn.Module):
         super().__init__()
 
     def forward(self,pred,labels):
-
+        #label：（bs，34,7，7）==pred
         numgridx,numgridy=labels.size()[-2:]
         noobj_confi_loss=0. # 不含目标的网格损失(只有置信度损失)
-        coor_loss=0.#含有目标的bbox的坐标损失
+        obj_loss=0.#含有目标的bbox的坐标损失
         n_batch=labels.size()[0]
         class_loss=0.# 含有目标的网格的类别损失
         obj_conf_loss=0. # 含有目标的bbox的置信度损失
@@ -243,8 +252,10 @@ class objloss(nn.Module):
         for i in range(n_batch):
             for n in range(7):
                 for m in range(7):
+                    #置信度
                     if labels[i,4,m,n]==1:# 如果包含物体
                         #pred:batch,[x1,y1,w1,h1,conf1,x2,y2,w2,h2,conf2,cls1,cls2....cls20],m,n
+                        #中心点及宽高转换为坐标方便计算iou
                         bbox1_pred_xyxy=((pred[i,0,m,n]+m)/numgridx-pred[i,2,m,n]/2,
                                          (pred[i,1,m,n]+n)/numgridy-pred[i,3,m,n]/2,
                                          (pred[i,0,m,n]+m)/numgridx+pred[i,2,m,n]/2,
@@ -264,19 +275,21 @@ class objloss(nn.Module):
                         iou2=calculate_iou(bbox2_pred_xyxy,bbox_gt_xxyy)
 
                         if iou1>=iou2:# 选择iou大的bbox作为负责物体
-                            coor_loss=coor_loss+5*(torch.sum((pred[i,0:2,m,n]-labels[i,0:2,m,n])**2)+torch.sum((pred[i,2:4,m,n].sqrt()-labels[i,2:4,m,n].sqrt())**2))
-
+                            #坐标损失
+                            obj_loss=obj_loss+5*(torch.sum((pred[i,0:2,m,n]-labels[i,0:2,m,n])**2)+torch.sum((pred[i,2:4,m,n].sqrt()-labels[i,2:4,m,n].sqrt())**2))
+                            #有目标置信度损失
                             obj_conf_loss=noobj_confi_loss+(pred[i,4,m,n]-iou1)**2
                             # iou比较小的bbox不负责预测物体，因此confidence loss算在noobj中，注意，对于标签的置信度应该
                             noobj_confi_loss=noobj_confi_loss+0.5*((pred[i,9,m,n]-iou2)**2)
                         else:
-                            coor_loss=coor_loss+5*(torch.sum((pred[i,5:7,m,n]-labels[i,5:7,m,n])**2)+torch.sum((pred[i,7:9,m,n].sqrt()-labels[i,7:9,m,n].sqrt())**2))
+                            obj_loss=obj_loss+5*(torch.sum((pred[i,5:7,m,n]-labels[i,5:7,m,n])**2)+torch.sum((pred[i,7:9,m,n].sqrt()-labels[i,7:9,m,n].sqrt())**2))
                             obj_conf_loss=obj_conf_loss+(pred[i,9,m,n]-iou2)**2
                             noobj_confi_loss=noobj_confi_loss+0.5*((pred[i,4,m,n]-iou1)**2)
+                            #类别损失
                         class_loss=class_loss+torch.sum((pred[i,10:,m,n]-labels[i,10:,m,n])**2)
                     else:
                         noobj_confi_loss+=0.5*torch.sum(pred[i,[4,9],m,n]**2)
-        loss=coor_loss+obj_conf_loss+noobj_confi_loss+coor_loss
+        loss=obj_loss+obj_conf_loss+noobj_confi_loss+class_loss
         return loss/n_batch
 
 
@@ -376,8 +389,8 @@ class Main(FlyAI):
             for i,(x,y) in enumerate(train_ld):
                 # x,y=x.float().cuda(),y.float().cuda()
                 x, y = x.float(), y.float()
-                ypred=model(x)
-                loss_=loss(ypred,y)
+                ypred=model(x)  #ypred:[bs,34,7,7]
+                loss_=loss(ypred,y)#ypred与y维度信息保持一致
                 optim.zero_grad()
                 loss_.backward()
                 optim.step()

@@ -37,3 +37,9 @@ print(list_)
 
 box=[1,2,3,4,5,6]
 print(box[1:5]*2)
+
+
+import torch
+
+aa=torch.randn(2,7,7,34)
+print(aa.size()[-2:])
